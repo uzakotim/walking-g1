@@ -1,1 +1,0 @@
-/usr/bin/c++ "CMakeFiles/walking-g1.dir/src/main.cpp.o" -o walking-g1 
