@@ -1,0 +1,3 @@
+/home/timur/git/walking-g1/build/CMakeFiles/walking-g1.dir
+/home/timur/git/walking-g1/build/CMakeFiles/edit_cache.dir
+/home/timur/git/walking-g1/build/CMakeFiles/rebuild_cache.dir
