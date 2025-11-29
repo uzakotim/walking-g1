@@ -34,15 +34,15 @@ Controller::Controller(const std::string &net_interface)
 	obs.setZero(num_obs);
 	act.setZero(num_actions);
 
-	std::cout << "Config loaded\n";
+	std::cout << "[CONTROLLER]: config loaded\n";
 
 	module = torch::jit::load("../pre_train/g1/motion.pt");
 
-	std::cout << "Model loaded\n";
+	std::cout << "[CONTROLLER]: model loaded\n";
 
 	if (net_interface == "lo")
 	{
-		std::cout << "Simulation selected" << std::endl;
+		std::cout << "[CONTROLLER]: simulation mode" << std::endl;
 		unitree::robot::ChannelFactory::Instance()->Init(1, net_interface);
 	}
 	else
@@ -61,7 +61,7 @@ Controller::Controller(const std::string &net_interface)
 	}
 
 	low_cmd_write_thread_ptr = unitree::common::CreateRecurrentThreadEx("low_cmd_write", UT_CPU_ID_NONE, 2000, &Controller::low_cmd_write_handler, this);
-	std::cout << "Controller init done!\n";
+	std::cout << "[CONTROLLER]: init done!\n";
 }
 
 void Controller::zero_torque_state()
@@ -69,7 +69,7 @@ void Controller::zero_torque_state()
 	// const std::chrono::milliseconds cycle_time(20);
 	// auto next_cycle = std::chrono::steady_clock::now();
 
-	std::cout << "[CONTROLLER] zero_torque_state\n";
+	std::cout << "[CONTROLLER]: zero_torque_state\n";
 	// while (!joy.btn.components.start)
 	// {
 	auto low_cmd = std::make_shared<unitree_hg::msg::dds_::LowCmd_>();
@@ -84,7 +84,7 @@ void Controller::zero_torque_state()
 	}
 
 	mLowCmdBuf.SetDataPtr(low_cmd);
-	std::cout << "[CONTROLLER] sent command\n";
+
 	// }
 }
 
@@ -106,7 +106,7 @@ void Controller::move_to_default_pos()
 
 	// while (count <= num_steps || !joy.btn.components.A)
 
-	std::cout << "[CONTROLLER] move_to_default_pos started\n";
+	std::cout << "[CONTROLLER]: move_to_default_pos STARTED\n";
 	while (count <= num_steps)
 	{
 		auto low_cmd = std::make_shared<unitree_hg::msg::dds_::LowCmd_>();
@@ -137,13 +137,11 @@ void Controller::move_to_default_pos()
 		next_cycle += cycle_time;
 		std::this_thread::sleep_until(next_cycle);
 	}
-	std::cout << "[CONTROLLER] move_to_default_pos FINISHED\n";
+	std::cout << "[CONTROLLER]: move_to_default_pos FINISHED\n";
 }
 
 void Controller::run()
 {
-	std::cout << "run controller, press select\n";
-
 	const std::chrono::milliseconds cycle_time(20);
 	auto next_cycle = std::chrono::steady_clock::now();
 
@@ -229,7 +227,7 @@ void Controller::run()
 
 void Controller::damp()
 {
-	std::cout << "damping\n";
+	std::cout << "[CONTROLLER]: damping\n";
 	const std::chrono::milliseconds cycle_time(20);
 	auto next_cycle = std::chrono::steady_clock::now();
 

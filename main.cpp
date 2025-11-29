@@ -51,14 +51,14 @@ void inputThread()
                 break;
             }
 
-            std::cout << "[InputThread] Key pressed: " << c << std::endl;
+            std::cout << "[INPUT_KEYBOARD] Key pressed: " << c << std::endl;
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
 
-// --- Thread to run controller ---
+// --- Thread to run high level commands ---
 void controllerThread(Controller *controller)
 {
     
@@ -74,17 +74,20 @@ void controllerThread(Controller *controller)
         if (key != '\0')
         {
             // Example: react to key in controller
-            std::cout << "[ControllerThread] Got key: " << key << std::endl;
+            std::cout << "[MAIN]: got key: " << key << std::endl;
             // You can call your controller methods here
             controller->handleKey(key);
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
+    controller->damp();
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::cout<<"[MAIN]: controller stopped\n";
 }
 
 void walkingThread(Controller *controller){
-    std::cout<<"walking thread\n";
+    std::cout<<"[MAIN]: starting walking\n";
     controller->run();
 }
 int main(int argc, char **argv)
@@ -107,6 +110,6 @@ int main(int argc, char **argv)
     t_controller.join();
     t_walking.join();
 
-    std::cout << "Exiting program.\n";
+    std::cout << "[MAIN] Exiting program.\n";
     return 0;
 }
