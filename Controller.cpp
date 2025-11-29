@@ -31,10 +31,21 @@ Controller::Controller(const std::string &net_interface)
 	obs.setZero(num_obs);
 	act.setZero(num_actions);
 
+	std::cout << "Config loaded\n";
+
 	module = torch::jit::load("../pre_train/g1/motion.pt");
 
-	unitree::robot::ChannelFactory::Instance()->Init(0, net_interface);
+	std::cout << "Model loaded\n";
 
+	if (net_interface == "lo")
+	{
+		std::cout << "Simulation selected" << std::endl;
+		unitree::robot::ChannelFactory::Instance()->Init(1, net_interface);
+	}
+	else
+	{
+		unitree::robot::ChannelFactory::Instance()->Init(0, net_interface);
+	}
 	lowcmd_publisher.reset(new unitree::robot::ChannelPublisher<unitree_hg::msg::dds_::LowCmd_>(TOPIC_LOWCMD));
 	lowstate_subscriber.reset(new unitree::robot::ChannelSubscriber<unitree_hg::msg::dds_::LowState_>(TOPIC_LOWSTATE));
 
@@ -52,28 +63,26 @@ Controller::Controller(const std::string &net_interface)
 
 void Controller::zero_torque_state()
 {
-	const std::chrono::milliseconds cycle_time(20);
-	auto next_cycle = std::chrono::steady_clock::now();
+	// const std::chrono::milliseconds cycle_time(20);
+	// auto next_cycle = std::chrono::steady_clock::now();
 
-	std::cout << "zero_torque_state, press start\n";
-	while (!joy.btn.components.start)
+	std::cout << "[CONTROLLER] zero_torque_state\n";
+	// while (!joy.btn.components.start)
+	// {
+	auto low_cmd = std::make_shared<unitree_hg::msg::dds_::LowCmd_>();
+
+	for (auto &cmd : low_cmd->motor_cmd())
 	{
-		auto low_cmd = std::make_shared<unitree_hg::msg::dds_::LowCmd_>();
-
-		for (auto &cmd : low_cmd->motor_cmd())
-		{
-			cmd.q() = 0;
-			cmd.dq() = 0;
-			cmd.kp() = 0;
-			cmd.kd() = 0;
-			cmd.tau() = 0;
-		}
-
-		mLowCmdBuf.SetDataPtr(low_cmd);
-
-		next_cycle += cycle_time;
-		std::this_thread::sleep_until(next_cycle);
+		cmd.q() = 0;
+		cmd.dq() = 0;
+		cmd.kp() = 0;
+		cmd.kd() = 0;
+		cmd.tau() = 50;
 	}
+
+	mLowCmdBuf.SetDataPtr(low_cmd);
+	std::cout << "[CONTROLLER] sent command\n";
+	// }
 }
 
 void Controller::move_to_default_pos()
@@ -237,6 +246,8 @@ void Controller::low_cmd_write_handler()
 {
 	if (auto lowCmdPtr = mLowCmdBuf.GetDataPtr())
 	{
+		// std::cout << "[CONTROLLER] writing command\n";
+
 		lowCmdPtr->mode_machine() = mLowStateBuf.GetDataPtr()->mode_machine();
 		lowCmdPtr->mode_pr() = 0;
 		for (auto &cmd : lowCmdPtr->motor_cmd())

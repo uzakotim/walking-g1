@@ -49,9 +49,18 @@ void inputThread()
     }
 }
 
-void outputThread()
+void outputThread(char *argv[])
 {
     char last_printed = '\0';
+    Controller controller(argv[1]);
+
+    // controller.zero_torque_state();
+    // controller.move_to_default_pos();
+    // controller.run();
+    // controller.damp();
+
+    const std::chrono::milliseconds cycle_time(20);
+    auto next_cycle = std::chrono::steady_clock::now();
 
     while (running)
     {
@@ -62,11 +71,17 @@ void outputThread()
             current = shared_key;
         }
 
-        if (current != last_printed && current != '\0')
-        {
-            std::cout << "Key pressed: " << current << std::endl;
-            last_printed = current;
-        }
+        // if (current != last_printed && current != '\0')
+        // {
+        std::cout << "[KEYBOARD]: " << current << std::endl;
+
+        // CONTROL LOOP --------
+        controller.zero_torque_state();
+        next_cycle += cycle_time;
+        std::this_thread::sleep_until(next_cycle);
+        // ---------------------
+        last_printed = current;
+        // }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
     }
@@ -81,15 +96,8 @@ int main(int argc, char **argv)
     }
     std::cout << "Press keys (single key capture). Press Ctrl+C to quit.\n";
 
-    Controller controller(argv[1]);
-    // controller.zero_torque_state();
-    // controller.move_to_default_pos();
-    // controller.run();
-    // controller.damp();
-
     std::thread t1(inputThread);
-    std::thread t2(outputThread);
-
+    std::thread t2(outputThread, argv);
     t1.join();
     running = false;
     t2.join();
