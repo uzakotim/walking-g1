@@ -21,7 +21,7 @@ public:
 	Controller(const std::string &net_interface);
 	void low_state_message_handler(const void *message);
 	void move_to_default_pos();
-	void run();
+	void run(float period, float time, char key);
 	void damp();
 	void zero_torque_state();
 
