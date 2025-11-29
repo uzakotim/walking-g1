@@ -55,6 +55,7 @@ private:
 	float dof_vel_scale;
 	float action_scale;
 	std::vector<float> cmd_scale;
+	std::vector<float> cmd_from_pressed_key;
 	float num_actions;
 	float num_obs;
 	std::vector<float> max_cmd;
@@ -62,6 +63,9 @@ private:
 	float time;
 	std::mutex mtx;
 	char shared_key;
+	float forward_speed;
+	float lateral_speed;
+	float angular_speed;
 
 	Eigen::VectorXf obs;
 	Eigen::VectorXf act;

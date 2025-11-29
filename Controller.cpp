@@ -28,9 +28,14 @@ Controller::Controller(const std::string &net_interface)
 	num_obs = yaml_node["num_obs"].as<float>();
 	max_cmd = yaml_node["max_cmd"].as<std::vector<float>>();
 	cmd_init = yaml_node["cmd_init"].as<std::vector<float>>();
+	forward_speed = yaml_node["forward_speed"].as<float>();
+	lateral_speed = yaml_node["lateral_speed"].as<float>();
+	angular_speed = yaml_node["angular_speed"].as<float>();
 	target_dof_pos = default_angles;
+	
 	time = 0.0;
 
+	cmd_from_pressed_key = cmd_init;
 	obs.setZero(num_obs);
 	act.setZero(num_actions);
 
@@ -147,13 +152,50 @@ void Controller::run()
 
 	float period = .8;
 	float time = 0;
+	
 
 	while (1)
 	{
 		std::cout<<"[CONTROLLER] key: " << shared_key << std::endl;
-		next_cycle += cycle_time;
-		std::this_thread::sleep_until(next_cycle);
-		continue;
+		
+		switch (shared_key)
+		{
+			case 'w':
+				cmd_from_pressed_key[0] = forward_speed;
+				cmd_from_pressed_key[1] = 0;
+				cmd_from_pressed_key[2] = 0;
+				break;
+			case 's':
+				cmd_from_pressed_key[0] = -forward_speed;
+				cmd_from_pressed_key[1] = 0;
+				cmd_from_pressed_key[2] = 0;
+				break;
+			case 'a':
+				cmd_from_pressed_key[0] = 0;
+				cmd_from_pressed_key[1] = lateral_speed;
+				cmd_from_pressed_key[2] = 0;
+				break;
+			case 'd':
+				cmd_from_pressed_key[0] = 0;
+				cmd_from_pressed_key[1] = -lateral_speed;
+				cmd_from_pressed_key[2] = 0;
+				break;
+			case 'q':
+				cmd_from_pressed_key[0] = 0;
+				cmd_from_pressed_key[1] = 0;
+				cmd_from_pressed_key[2] = angular_speed;
+				break;
+			case 'e':
+				cmd_from_pressed_key[0] = 0;
+				cmd_from_pressed_key[1] = 0;
+				cmd_from_pressed_key[2] = -angular_speed;
+				break;
+			default:
+				cmd_from_pressed_key[0] = 0;
+				cmd_from_pressed_key[1] = 0;
+				cmd_from_pressed_key[2] = 0;
+				break;
+		}
 
 		auto low_state = mLowStateBuf.GetDataPtr();
 		// obs
@@ -174,9 +216,9 @@ void Controller::run()
 		// obs(7) = joy.lx * -1 * max_cmd[1] * cmd_scale[1];
 		// obs(8) = joy.rx * -1 * max_cmd[2] * cmd_scale[2];
 
-		obs(6) = cmd_init[0] * cmd_scale[0];
-		obs(7) = cmd_init[1] * cmd_scale[1];
-		obs(8) = cmd_init[2] * cmd_scale[2];
+		obs(6) = cmd_from_pressed_key[0] * cmd_scale[0];
+		obs(7) = cmd_from_pressed_key[1] * cmd_scale[1];
+		obs(8) = cmd_from_pressed_key[2] * cmd_scale[2];
 
 		for (int i = 0; i < 12; i++)
 		{
