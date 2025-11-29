@@ -21,7 +21,7 @@ public:
 	Controller(const std::string &net_interface);
 	void low_state_message_handler(const void *message);
 	void move_to_default_pos();
-	void run(float period, float time, char key);
+	void run();
 	void damp();
 	void zero_torque_state();
 
@@ -44,6 +44,7 @@ private:
 	std::vector<float> kps;
 	std::vector<float> kds;
 	std::vector<float> default_angles;
+	std::vector<float> target_dof_pos;
 	std::vector<float> arm_waist_joint2motor_idx;
 	std::vector<float> arm_waist_kps;
 	std::vector<float> arm_waist_kds;
@@ -56,6 +57,8 @@ private:
 	float num_actions;
 	float num_obs;
 	std::vector<float> max_cmd;
+	std::vector<float> cmd_init;
+	float time;
 
 	Eigen::VectorXf obs;
 	Eigen::VectorXf act;

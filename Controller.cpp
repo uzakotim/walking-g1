@@ -27,6 +27,9 @@ Controller::Controller(const std::string &net_interface)
 	num_actions = yaml_node["num_actions"].as<float>();
 	num_obs = yaml_node["num_obs"].as<float>();
 	max_cmd = yaml_node["max_cmd"].as<std::vector<float>>();
+	cmd_init = yaml_node["cmd_init"].as<std::vector<float>>();
+	target_dof_pos = default_angles;
+	time = 0.0;
 
 	obs.setZero(num_obs);
 	act.setZero(num_actions);
@@ -137,125 +140,86 @@ void Controller::move_to_default_pos()
 	std::cout << "[CONTROLLER] move_to_default_pos FINISHED\n";
 }
 
-void Controller::run(float period, float time, char key)
+void Controller::run()
 {
 	std::cout << "run controller, press select\n";
 
-	// const std::chrono::milliseconds cycle_time(20);
-	// auto next_cycle = std::chrono::steady_clock::now();
+	const std::chrono::milliseconds cycle_time(20);
+	auto next_cycle = std::chrono::steady_clock::now();
 
-	// float period = .8;
-	// float time = 0;
+	float period = .8;
+	float time = 0;
 
-	// while (!joy.btn.components.select)
-	// {
-	auto low_state = mLowStateBuf.GetDataPtr();
-	// obs
-	Eigen::Matrix3f R = Eigen::Quaternionf(low_state->imu_state().quaternion()[0], low_state->imu_state().quaternion()[1], low_state->imu_state().quaternion()[2], low_state->imu_state().quaternion()[3]).toRotationMatrix();
-
-	for (int i = 0; i < 3; i++)
+	while (1)
 	{
-		obs(i) = ang_vel_scale * low_state->imu_state().gyroscope()[i];
-		obs(i + 3) = -R(2, i);
+		auto low_state = mLowStateBuf.GetDataPtr();
+		// obs
+		Eigen::Matrix3f R = Eigen::Quaternionf(low_state->imu_state().quaternion()[0], low_state->imu_state().quaternion()[1], low_state->imu_state().quaternion()[2], low_state->imu_state().quaternion()[3]).toRotationMatrix();
+
+		for (int i = 0; i < 3; i++)
+		{
+			obs(i) = ang_vel_scale * low_state->imu_state().gyroscope()[i];
+			obs(i + 3) = -R(2, i);
+		}
+
+		if (obs(5) > 0)
+		{
+			break;
+		}
+
+		// obs(6) = joy.ly * max_cmd[0] * cmd_scale[0];
+		// obs(7) = joy.lx * -1 * max_cmd[1] * cmd_scale[1];
+		// obs(8) = joy.rx * -1 * max_cmd[2] * cmd_scale[2];
+
+		obs(6) = cmd_init[0] * cmd_scale[0];
+		obs(7) = cmd_init[1] * cmd_scale[1];
+		obs(8) = cmd_init[2] * cmd_scale[2];
+
+		for (int i = 0; i < 12; i++)
+		{
+			obs(9 + i) = (low_state->motor_state()[i].q() - default_angles[i]) * dof_pos_scale;
+			obs(21 + i) = low_state->motor_state()[i].dq() * dof_vel_scale;
+		}
+		obs.segment(33, 12) = act;
+
+		float phase = std::fmod(time / period, 1);
+		time += .02;
+		obs(45) = std::sin(2 * M_PI * phase);
+		obs(46) = std::cos(2 * M_PI * phase);
+
+		// policy forward
+		torch::Tensor torch_tensor = torch::from_blob(obs.data(), {1, obs.size()}, torch::kFloat).clone();
+		std::vector<torch::jit::IValue> inputs;
+		inputs.push_back(torch_tensor);
+		torch::Tensor output_tensor = module.forward(inputs).toTensor();
+		std::memcpy(act.data(), output_tensor.data_ptr<float>(), output_tensor.size(1) * sizeof(float));
+
+		auto low_cmd = std::make_shared<unitree_hg::msg::dds_::LowCmd_>();
+		// leg
+		for (int i = 0; i < 12; i++)
+		{
+			low_cmd->motor_cmd()[i].q() = act(i) * action_scale + default_angles[i];
+			low_cmd->motor_cmd()[i].kp() = kps[i];
+			low_cmd->motor_cmd()[i].kd() = kds[i];
+			low_cmd->motor_cmd()[i].dq() = 0;
+			low_cmd->motor_cmd()[i].tau() = 0;
+		}
+
+		// waist arm
+		for (int i = 12; i < 29; i++)
+		{
+			low_cmd->motor_cmd()[i].q() = arm_waist_target[i - 12];
+			low_cmd->motor_cmd()[i].kp() = arm_waist_kps[i - 12];
+			low_cmd->motor_cmd()[i].kd() = arm_waist_kds[i - 12];
+			low_cmd->motor_cmd()[i].dq() = 0;
+			low_cmd->motor_cmd()[i].tau() = 0;
+		}
+
+		mLowCmdBuf.SetDataPtr(low_cmd);
+
+		next_cycle += cycle_time;
+		std::this_thread::sleep_until(next_cycle);
 	}
-
-	if (obs(5) > 0)
-	{
-		return;
-	}
-
-	// JOYSTICK
-	// obs(6) = joy.ly * max_cmd[0] * cmd_scale[0];
-	// obs(7) = joy.lx * -1 * max_cmd[1] * cmd_scale[1];
-	// obs(8) = joy.rx * -1 * max_cmd[2] * cmd_scale[2];
-
-	// KEYBOARD -------------------------
-
-	// initialize virtual joystick axes
-	float ly = 0.0f;
-	float lx = 0.0f;
-	float rx = 0.0f;
-
-	// map key to axis direction
-	switch (key)
-	{
-	case 'w':
-		ly = 1.0f; // forward
-		break;
-	case 's':
-		ly = -1.0f; // backward
-		break;
-	case 'd':
-		lx = 1.0f; // right
-		break;
-	case 'a':
-		lx = -1.0f; // left
-		break;
-
-	case 'e':
-		rx = 1.0f; // rotate right (optional)
-		break;
-	case 'q':
-		rx = -1.0f; // rotate left (optional)
-		break;
-
-	default:
-		// no movement
-		break;
-	}
-
-	obs(6) = ly * max_cmd[0] * cmd_scale[0];
-	obs(7) = lx * -1 * max_cmd[1] * cmd_scale[1];
-	obs(8) = rx * -1 * max_cmd[2] * cmd_scale[2];
-
-	// --------------------------
-
-	for (int i = 0; i < 12; i++)
-	{
-		obs(9 + i) = (low_state->motor_state()[i].q() - default_angles[i]) * dof_pos_scale;
-		obs(21 + i) = low_state->motor_state()[i].dq() * dof_vel_scale;
-	}
-	obs.segment(33, 12) = act;
-
-	float phase = std::fmod(time / period, 1);
-	// time += .02;
-
-	obs(45) = std::sin(2 * M_PI * phase);
-	obs(46) = std::cos(2 * M_PI * phase);
-
-	// policy forward
-	torch::Tensor torch_tensor = torch::from_blob(obs.data(), {1, obs.size()}, torch::kFloat).clone();
-	std::vector<torch::jit::IValue> inputs;
-	inputs.push_back(torch_tensor);
-	torch::Tensor output_tensor = module.forward(inputs).toTensor();
-	std::memcpy(act.data(), output_tensor.data_ptr<float>(), output_tensor.size(1) * sizeof(float));
-
-	auto low_cmd = std::make_shared<unitree_hg::msg::dds_::LowCmd_>();
-	// leg
-	for (int i = 0; i < 12; i++)
-	{
-		low_cmd->motor_cmd()[i].q() = act(i) * action_scale + default_angles[i];
-		low_cmd->motor_cmd()[i].kp() = kps[i];
-		low_cmd->motor_cmd()[i].kd() = kds[i];
-		low_cmd->motor_cmd()[i].dq() = 0;
-		low_cmd->motor_cmd()[i].tau() = 0;
-	}
-
-	// waist arm
-	for (int i = 12; i < 29; i++)
-	{
-		low_cmd->motor_cmd()[i].q() = arm_waist_target[i - 12];
-		low_cmd->motor_cmd()[i].kp() = arm_waist_kps[i - 12];
-		low_cmd->motor_cmd()[i].kd() = arm_waist_kds[i - 12];
-		low_cmd->motor_cmd()[i].dq() = 0;
-		low_cmd->motor_cmd()[i].tau() = 0;
-	}
-
-	mLowCmdBuf.SetDataPtr(low_cmd);
-
-	// next_cycle += cycle_time;
-	// std::this_thread::sleep_until(next_cycle);
-	// }
 }
 
 void Controller::damp()

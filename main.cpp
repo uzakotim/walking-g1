@@ -62,9 +62,6 @@ void outputThread(char *argv[])
     const std::chrono::milliseconds cycle_time(20);
     auto next_cycle = std::chrono::steady_clock::now();
 
-    float period = .8;
-    float time = 0;
-
     while (running)
     {
         char current;
@@ -91,29 +88,9 @@ void outputThread(char *argv[])
             break;
         case 'w':
             std::cout << "[STATE]: run" << std::endl;
-            controller.run(period, time, current);
-            break;
-        case 'a':
-            std::cout << "[STATE]: run" << std::endl;
-            controller.run(period, time, current);
-            break;
-        case 's':
-            std::cout << "[STATE]: run" << std::endl;
-            controller.run(period, time, current);
+            controller.run();
             break;
         case 'd':
-            std::cout << "[STATE]: run" << std::endl;
-            controller.run(period, time, current);
-            break;
-        case 'e':
-            std::cout << "[STATE]: run" << std::endl;
-            controller.run(period, time, current);
-            break;
-        case 'q':
-            std::cout << "[STATE]: run" << std::endl;
-            controller.run(period, time, current);
-            break;
-        case 'k':
             std::cout << "[STATE]: damp" << std::endl;
             break;
         default:
@@ -121,7 +98,6 @@ void outputThread(char *argv[])
         }
         next_cycle += cycle_time;
         std::this_thread::sleep_until(next_cycle);
-        time += .02;
         // ---------------------
         last_printed = current;
         // }
