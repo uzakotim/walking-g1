@@ -51,7 +51,7 @@ Controller::Controller(const std::string &net_interface)
 	}
 	lowcmd_publisher.reset(new unitree::robot::ChannelPublisher<unitree_hg::msg::dds_::LowCmd_>(TOPIC_LOWCMD));
 	lowstate_subscriber.reset(new unitree::robot::ChannelSubscriber<unitree_hg::msg::dds_::LowState_>(TOPIC_LOWSTATE));
-
+	
 	lowcmd_publisher->InitChannel();
 	lowstate_subscriber->InitChannel(std::bind(&Controller::low_state_message_handler, this, std::placeholders::_1));
 
@@ -152,6 +152,11 @@ void Controller::run()
 
 	while (1)
 	{
+		std::cout<<"[CONTROLLER] key: " << shared_key << std::endl;
+		next_cycle += cycle_time;
+		std::this_thread::sleep_until(next_cycle);
+		continue;
+
 		auto low_state = mLowStateBuf.GetDataPtr();
 		// obs
 		Eigen::Matrix3f R = Eigen::Quaternionf(low_state->imu_state().quaternion()[0], low_state->imu_state().quaternion()[1], low_state->imu_state().quaternion()[2], low_state->imu_state().quaternion()[3]).toRotationMatrix();
@@ -246,13 +251,17 @@ void Controller::damp()
 	}
 }
 
+void Controller::handleKey(char key){
+	std::lock_guard<std::mutex> lock(mtx);
+	shared_key = key;
+}
+
 void Controller::low_state_message_handler(const void *message)
 {
 	unitree_hg::msg::dds_::LowState_ *ptr = (unitree_hg::msg::dds_::LowState_ *)message;
 	mLowStateBuf.SetData(*ptr);
 	std::memcpy(&joy, ptr->wireless_remote().data(), ptr->wireless_remote().size() * sizeof(uint8_t));
 }
-
 void Controller::low_cmd_write_handler()
 {
 	if (auto lowCmdPtr = mLowCmdBuf.GetDataPtr())

@@ -20,6 +20,7 @@ class Controller
 public:
 	Controller(const std::string &net_interface);
 	void low_state_message_handler(const void *message);
+	void handleKey(char key);
 	void move_to_default_pos();
 	void run();
 	void damp();
@@ -59,6 +60,8 @@ private:
 	std::vector<float> max_cmd;
 	std::vector<float> cmd_init;
 	float time;
+	std::mutex mtx;
+	char shared_key;
 
 	Eigen::VectorXf obs;
 	Eigen::VectorXf act;

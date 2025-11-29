@@ -6,11 +6,12 @@
 #include <unistd.h>
 #include "Controller.h"
 
+// Shared key storage
 std::mutex mtx;
 char shared_key = '\0';
 std::atomic<bool> running(true);
 
-// --- Configure terminal to read single characters ---
+// --- Terminal setup for single-character input ---
 struct TermiosGuard
 {
     termios old_tio;
@@ -29,97 +30,83 @@ struct TermiosGuard
     }
 };
 
+// --- Thread to read keypresses ---
 void inputThread()
 {
-    TermiosGuard guard; // automatically restores terminal on exit
+    TermiosGuard guard;
 
     while (running)
     {
         char c;
         if (read(STDIN_FILENO, &c, 1) == 1)
         {
-            std::lock_guard<std::mutex> lock(mtx);
-            shared_key = c;
-
-            if (c == '\x03')
-            { // Ctrl+C to stop
-                running = false;
+            {
+                std::lock_guard<std::mutex> lock(mtx);
+                shared_key = c;
             }
+
+            if (c == '\x03') // Ctrl+C
+            {
+                running = false;
+                break;
+            }
+
+            std::cout << "[InputThread] Key pressed: " << c << std::endl;
         }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
 
-void outputThread(char *argv[])
+// --- Thread to run controller ---
+void controllerThread(Controller *controller)
 {
-    char last_printed = '\0';
-    Controller controller(argv[1]);
-
-    // controller.zero_torque_state();
-    // controller.move_to_default_pos();
-    // controller.run();
-    // controller.damp();
-
-    const std::chrono::milliseconds cycle_time(20);
-    auto next_cycle = std::chrono::steady_clock::now();
-
+    
     while (running)
     {
-        char current;
-
+        char key = '\0';
         {
             std::lock_guard<std::mutex> lock(mtx);
-            current = shared_key;
+            key = shared_key;
+            shared_key = '\0'; // clear after reading
         }
 
-        // if (current != last_printed && current != '\0')
-        // {
-        std::cout << "[KEYBOARD]: " << current << std::endl;
-        // CONTROL LOOP --------
-        switch (current)
+        if (key != '\0')
         {
-        case '1':
-            std::cout << "[STATE]: zero_torque_state" << std::endl;
-            controller.zero_torque_state();
-            break;
-        case '2':
-            std::cout << "[STATE]: move_to_default_pos" << std::endl;
-            controller.move_to_default_pos();
-            current = '\0';
-            break;
-        case 'w':
-            std::cout << "[STATE]: run" << std::endl;
-            controller.run();
-            break;
-        case 'd':
-            std::cout << "[STATE]: damp" << std::endl;
-            break;
-        default:
-            break;
+            // Example: react to key in controller
+            std::cout << "[ControllerThread] Got key: " << key << std::endl;
+            // You can call your controller methods here
+            controller->handleKey(key);
         }
-        next_cycle += cycle_time;
-        std::this_thread::sleep_until(next_cycle);
-        // ---------------------
-        last_printed = current;
-        // }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
 }
 
+void walkingThread(Controller *controller){
+    std::cout<<"walking thread\n";
+    controller->run();
+}
 int main(int argc, char **argv)
 {
     if (argc != 2)
     {
-        std::cout << "walking-g1 [net_interface]" << std::endl;
-        exit(1);
+        std::cout << "Usage: walking-g1 [net_interface]" << std::endl;
+        return 1;
     }
+    Controller controller(argv[1]);
     std::cout << "Press keys (single key capture). Press Ctrl+C to quit.\n";
+    // Launch threads
+    std::thread t_input(inputThread);
+    std::thread t_controller(controllerThread, &controller);
+    std::thread t_walking(walkingThread, &controller);
 
-    std::thread t1(inputThread);
-    std::thread t2(outputThread, argv);
-    t1.join();
+    // Wait for threads to finish
+    t_input.join();
     running = false;
-    t2.join();
+    t_controller.join();
+    t_walking.join();
 
+    std::cout << "Exiting program.\n";
     return 0;
 }
