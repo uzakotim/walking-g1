@@ -1,5 +1,12 @@
+HOW TO COMPILE:
+Prerequisites:
+download latest 
+wget https://download.pytorch.org/libtorch/nightly/cpu/libtorch-shared-with-deps-latest.zip
+place libtorch folder inside this repo
+
+
 mkdir build
 cd build
-cmake -DCMAKE_PREFIX_PATH=/absolute/path/to/libtorch ..
+cmake -DCMAKE_PREFIX_PATH=/home/timur/git/walking-g1/libtorch ..
 cmake --build . --config Release
 
