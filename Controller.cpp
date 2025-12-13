@@ -232,40 +232,11 @@ void Controller::run()
 		obs(46) = std::cos(2 * M_PI * phase);
 
 		// policy forward
-		// NEW TORCH
-		// torch::Tensor torch_tensor = torch::from_blob(obs.data(), {1, obs.size()}, torch::kFloat).clone();
-		// std::vector<torch::jit::IValue> inputs;
-		// inputs.push_back(torch_tensor);
-		// torch::Tensor output_tensor = module.forward(inputs).toTensor();
-		// std::memcpy(act.data(), output_tensor.data_ptr<float>(), output_tensor.size(1) * sizeof(float));
-
-		// OLD TORCH
-		// policy forward (Torch 2.0 compatible)
-		torch::InferenceMode guard; // disables autograd + versioning (best for inference)
-
-		// Create tensor from raw observation buffer
-		auto options = torch::TensorOptions()
-						   .dtype(torch::kFloat32)
-						   .device(torch::kCPU);
-
-		torch::Tensor torch_tensor = torch::from_blob(
-										 obs.data(),
-										 {1, static_cast<long>(obs.size())},
-										 options)
-										 .clone(); // clone to own memory
-
-		// Prepare JIT inputs
+		torch::Tensor torch_tensor = torch::from_blob(obs.data(), {1, obs.size()}, torch::kFloat).clone();
 		std::vector<torch::jit::IValue> inputs;
-		inputs.emplace_back(torch_tensor);
-
-		// Forward pass
-		torch::Tensor output_tensor = module.forward(inputs).toTensor().contiguous();
-
-		// Copy output to action buffer
-		std::memcpy(
-			act.data(),
-			output_tensor.data_ptr<float>(),
-			output_tensor.numel() * sizeof(float));
+		inputs.push_back(torch_tensor);
+		torch::Tensor output_tensor = module.forward(inputs).toTensor();
+		std::memcpy(act.data(), output_tensor.data_ptr<float>(), output_tensor.size(1) * sizeof(float));
 
 		auto low_cmd = std::make_shared<unitree_hg::msg::dds_::LowCmd_>();
 		// leg
