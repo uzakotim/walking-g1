@@ -8,8 +8,11 @@ include_directories(/usr/local/include/ddscxx)
 include_directories(/usr/local/include/iceoryx/v2.0.2)
 
 set(CMAKE_CXX_STANDARD 17)
+set(Torch_DIR /path/to/pytorch/torch/share/cmake/Torch)
 
-set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/libtorch/share/cmake")
+find_package(Torch REQUIRED)
+
+
 find_package(Torch REQUIRED)
 include_directories(${TORCH_INCLUDE_DIRS})
 
@@ -23,3 +26,5 @@ add_executable(${PROJECT_NAME} ${SRC_LIST})
 
 find_package(yaml-cpp REQUIRED)
 target_link_libraries(${PROJECT_NAME} unitree_sdk2 ddsc ddscxx ${TORCH_LIBRARIES} yaml-cpp::yaml-cpp pthread)
+
+set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
