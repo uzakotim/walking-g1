@@ -5,6 +5,8 @@ wget https://download.pytorch.org/libtorch/nightly/cpu/libtorch-shared-with-deps
 place libtorch folder inside this repo
 
 
+gdown https://drive.google.com/uc?id=1N67Pqb0I1e-k86BQIUr1gSKPqfnpaKu3
+
 mkdir build
 cd build
 cmake -DCMAKE_PREFIX_PATH=/home/timur/git/walking-g1/libtorch ..
