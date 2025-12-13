@@ -7,6 +7,7 @@
 #include <unitree/robot/channel/channel_publisher.hpp>
 #include <unitree/common/time/time_tool.hpp>
 
+#include "torch/torch.h"
 #include "torch/script.h"
 
 #include <eigen3/Eigen/Eigen>
