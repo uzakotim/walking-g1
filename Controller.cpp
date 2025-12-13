@@ -32,7 +32,7 @@ Controller::Controller(const std::string &net_interface)
 	lateral_speed = yaml_node["lateral_speed"].as<float>();
 	angular_speed = yaml_node["angular_speed"].as<float>();
 	target_dof_pos = default_angles;
-	
+
 	time = 0.0;
 
 	cmd_from_pressed_key = cmd_init;
@@ -56,7 +56,7 @@ Controller::Controller(const std::string &net_interface)
 	}
 	lowcmd_publisher.reset(new unitree::robot::ChannelPublisher<unitree_hg::msg::dds_::LowCmd_>(TOPIC_LOWCMD));
 	lowstate_subscriber.reset(new unitree::robot::ChannelSubscriber<unitree_hg::msg::dds_::LowState_>(TOPIC_LOWSTATE));
-	
+
 	lowcmd_publisher->InitChannel();
 	lowstate_subscriber->InitChannel(std::bind(&Controller::low_state_message_handler, this, std::placeholders::_1));
 
@@ -152,49 +152,48 @@ void Controller::run()
 
 	float period = .8;
 	float time = 0;
-	
 
 	while (1)
 	{
-		std::cout<<"[CONTROLLER] key: " << shared_key << std::endl;
-		
+		std::cout << "[CONTROLLER] key: " << shared_key << std::endl;
+
 		switch (shared_key)
 		{
-			case 'w':
-				cmd_from_pressed_key[0] = forward_speed;
-				cmd_from_pressed_key[1] = 0;
-				cmd_from_pressed_key[2] = 0;
-				break;
-			case 's':
-				cmd_from_pressed_key[0] = -forward_speed;
-				cmd_from_pressed_key[1] = 0;
-				cmd_from_pressed_key[2] = 0;
-				break;
-			case 'a':
-				cmd_from_pressed_key[0] = 0;
-				cmd_from_pressed_key[1] = lateral_speed;
-				cmd_from_pressed_key[2] = 0;
-				break;
-			case 'd':
-				cmd_from_pressed_key[0] = 0;
-				cmd_from_pressed_key[1] = -lateral_speed;
-				cmd_from_pressed_key[2] = 0;
-				break;
-			case 'q':
-				cmd_from_pressed_key[0] = 0;
-				cmd_from_pressed_key[1] = 0;
-				cmd_from_pressed_key[2] = angular_speed;
-				break;
-			case 'e':
-				cmd_from_pressed_key[0] = 0;
-				cmd_from_pressed_key[1] = 0;
-				cmd_from_pressed_key[2] = -angular_speed;
-				break;
-			default:
-				cmd_from_pressed_key[0] = 0;
-				cmd_from_pressed_key[1] = 0;
-				cmd_from_pressed_key[2] = 0;
-				break;
+		case 'w':
+			cmd_from_pressed_key[0] = forward_speed;
+			cmd_from_pressed_key[1] = 0;
+			cmd_from_pressed_key[2] = 0;
+			break;
+		case 's':
+			cmd_from_pressed_key[0] = -forward_speed;
+			cmd_from_pressed_key[1] = 0;
+			cmd_from_pressed_key[2] = 0;
+			break;
+		case 'a':
+			cmd_from_pressed_key[0] = 0;
+			cmd_from_pressed_key[1] = lateral_speed;
+			cmd_from_pressed_key[2] = 0;
+			break;
+		case 'd':
+			cmd_from_pressed_key[0] = 0;
+			cmd_from_pressed_key[1] = -lateral_speed;
+			cmd_from_pressed_key[2] = 0;
+			break;
+		case 'q':
+			cmd_from_pressed_key[0] = 0;
+			cmd_from_pressed_key[1] = 0;
+			cmd_from_pressed_key[2] = angular_speed;
+			break;
+		case 'e':
+			cmd_from_pressed_key[0] = 0;
+			cmd_from_pressed_key[1] = 0;
+			cmd_from_pressed_key[2] = -angular_speed;
+			break;
+		default:
+			cmd_from_pressed_key[0] = 0;
+			cmd_from_pressed_key[1] = 0;
+			cmd_from_pressed_key[2] = 0;
+			break;
 		}
 
 		auto low_state = mLowStateBuf.GetDataPtr();
@@ -233,11 +232,40 @@ void Controller::run()
 		obs(46) = std::cos(2 * M_PI * phase);
 
 		// policy forward
-		torch::Tensor torch_tensor = torch::from_blob(obs.data(), {1, obs.size()}, torch::kFloat).clone();
+		// NEW TORCH
+		// torch::Tensor torch_tensor = torch::from_blob(obs.data(), {1, obs.size()}, torch::kFloat).clone();
+		// std::vector<torch::jit::IValue> inputs;
+		// inputs.push_back(torch_tensor);
+		// torch::Tensor output_tensor = module.forward(inputs).toTensor();
+		// std::memcpy(act.data(), output_tensor.data_ptr<float>(), output_tensor.size(1) * sizeof(float));
+
+		// OLD TORCH
+		// policy forward (Torch 2.0 compatible)
+		torch::InferenceMode guard; // disables autograd + versioning (best for inference)
+
+		// Create tensor from raw observation buffer
+		auto options = torch::TensorOptions()
+						   .dtype(torch::kFloat32)
+						   .device(torch::kCPU);
+
+		torch::Tensor torch_tensor = torch::from_blob(
+										 obs.data(),
+										 {1, static_cast<long>(obs.size())},
+										 options)
+										 .clone(); // clone to own memory
+
+		// Prepare JIT inputs
 		std::vector<torch::jit::IValue> inputs;
-		inputs.push_back(torch_tensor);
-		torch::Tensor output_tensor = module.forward(inputs).toTensor();
-		std::memcpy(act.data(), output_tensor.data_ptr<float>(), output_tensor.size(1) * sizeof(float));
+		inputs.emplace_back(torch_tensor);
+
+		// Forward pass
+		torch::Tensor output_tensor = module.forward(inputs).toTensor().contiguous();
+
+		// Copy output to action buffer
+		std::memcpy(
+			act.data(),
+			output_tensor.data_ptr<float>(),
+			output_tensor.numel() * sizeof(float));
 
 		auto low_cmd = std::make_shared<unitree_hg::msg::dds_::LowCmd_>();
 		// leg
@@ -291,7 +319,8 @@ void Controller::damp()
 	}
 }
 
-void Controller::handleKey(char key){
+void Controller::handleKey(char key)
+{
 	std::lock_guard<std::mutex> lock(mtx);
 	shared_key = key;
 }
