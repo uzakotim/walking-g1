@@ -1,8 +1,0 @@
-torch
-torchvision
-torchaudio
-matplotlib
-numpy
-tensorboard
-mujoco==3.2.3
-pyyaml
